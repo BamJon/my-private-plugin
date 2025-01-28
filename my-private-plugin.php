@@ -30,11 +30,13 @@ function check_for_github_plugin_update($transient) {
     // Fetch release data from GitHub
     $response = wp_remote_get($url);
     if (is_wp_error($response)) {
+        error_log('GitHub API request failed: ' . $response->get_error_message());
         return $transient; // Exit on error
     }
 
     $release = json_decode(wp_remote_retrieve_body($response));
-    if (empty($release->tag_name)) {
+    if (empty($release) || empty($release->tag_name)) {
+        error_log('Invalid release data from GitHub API.');
         return $transient; // Exit if no version found
     }
 
@@ -48,8 +50,14 @@ function check_for_github_plugin_update($transient) {
         return $transient;
     }
 
+    // Include required WordPress file for get_plugin_data()
+    if (!function_exists('get_plugin_data')) {
+        require_once ABSPATH . 'wp-admin/includes/plugin.php';
+    }
+
     // Get current plugin version
-    $current_version = get_plugin_data($plugin_file)['Version'];
+    $plugin_data = get_plugin_data($plugin_file);
+    $current_version = $plugin_data['Version'];
 
     // Check if an update is needed
     if (version_compare($current_version, ltrim($release->tag_name, 'v'), '<')) {
@@ -64,3 +72,51 @@ function check_for_github_plugin_update($transient) {
     return $transient;
 }
 
+/**
+ * Provide additional plugin information.
+ *
+ * @param mixed  $result The result object or array.
+ * @param string $action The requested action.
+ * @param object $args   Plugin API arguments.
+ * @return mixed Modified plugin information.
+ */
+function github_plugin_update_info($result, $action, $args) {
+    if ($action !== 'plugin_information') {
+        return $result;
+    }
+
+    $plugin_slug = 'my-private-plugin'; // Replace with your plugin slug
+    if ($args->slug !== $plugin_slug) {
+        return $result;
+    }
+
+    // GitHub API URL for latest release
+    $repo = 'BamJon/my-private-plugin'; // Replace with your repository
+    $url = "https://api.github.com/repos/$repo/releases/latest";
+
+    // Fetch release data
+    $response = wp_remote_get($url);
+    if (is_wp_error($response)) {
+        error_log('GitHub API request failed: ' . $response->get_error_message());
+        return $result; // Exit on error
+    }
+
+    $release = json_decode(wp_remote_retrieve_body($response));
+    if (empty($release)) {
+        error_log('Invalid release data from GitHub API.');
+        return $result; // Exit if no release data
+    }
+
+    // Provide plugin information for the "View details" link
+    return (object) [
+        'name'          => 'Test plugin', // Replace with your plugin name
+        'slug'          => $plugin_slug,
+        'version'       => ltrim($release->tag_name, 'v'),
+        'author'        => '<a href="https://yourwebsite.com">Your Name</a>', // Replace with your name and link
+        'homepage'      => $release->html_url,
+        'sections'      => [
+            'description' => $release->body ?? 'No description available.',
+        ],
+        'download_link' => $release->assets[0]->browser_download_url ?? '', // ZIP file download URL
+    ];
+}
