@@ -3,7 +3,7 @@
 Plugin Name: Test plugin
 Plugin URI: https://github.com/BamJon/my-private-plugin
 Description: A custom plugin with GitHub updates.
-Version: 1.0.4
+Version: 1.0.5
 Author: jon
 Author URI: https://yourwebsite.com
 License: GPL2
